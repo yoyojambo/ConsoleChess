@@ -1,6 +1,7 @@
 import java.util.Scanner;
 
 public class Input {
+    // TODO: Fix this crap
     private static Scanner input = new Scanner(System.in);
 
     public static int[][] nextMove() throws Exception {
