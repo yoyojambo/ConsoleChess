@@ -1,10 +1,16 @@
+import java.util.Scanner;
+
 public class ConChess {
 
-	private static final String initPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-	// Board begins at a1, ends at h8
+	// Board begins at a8, ends at h1
+	// private static final String initPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+	// Board is layed out top to bottom, left to right, [x][y]
 	private static char[][] board;
 	// Turn true = white, false = black
-	private static boolean turn;
+	private static boolean turn = true;
+	private static boolean Check;
+	// Kings Location: [0] white, [1] black; x,y
+	private static int[][] kLocation = {{4, 7},{4, 0}};
 	// Castling: [0] = White King Side, [1] White Queen Side,
 	// [2] Black King Side, [3] Black Queen Side
 	private static boolean[] castling = new boolean[4];
@@ -12,46 +18,68 @@ public class ConChess {
 	public static void main(String[] args) throws Exception {
 		System.out.println("Welcome to Console Chess!\n");
 		Help();
-		Fen2Arr(initPosition);
+		board = initPositionArr();
 		Draw();
 		while (true) {
-			int[][] move = Input.nextMove();
-			char[][] newBoard = make(move);
-
-			if (newBoard != null) {
+			int[][] move = nextMove();
+			int[] origin = move[0];
+			int[] destiny = move[1];
+			if (legal(origin, destiny, board)) {
+				char[][] newBoard = makeMove(origin, destiny);
 				board = newBoard.clone();
 				turn = !turn;
 				Draw();
+				if (Check) {
+					System.out.println("Check!");
+				}
+				Check = false;
 			} else {
-				System.out.println("Illegal move, input again. \n");
+				System.out.println("Illegal move, input again.\n");
 			}
 		}
+	}
+
+	private static int[][] nextMove() {
+		Scanner input = new Scanner(System.in);
+		System.out.print("\nMove: ");
+		String unParsed = input.nextLine().toLowerCase();
+		String[] parsed = unParsed.split(" ");
+
+		char originXChar = parsed[0].charAt(0);
+		char originYChar = parsed[0].charAt(1);
+		char destinyXChar = parsed[1].charAt(0);
+		char destinyYChar = parsed[1].charAt(1);
+
+		int originX = (int) originXChar - 97;
+		int originY = -1 * ((int) originYChar - 49) + 7;
+		int destinyX = (int) destinyXChar - 97;
+		int destinyY = -1 * ((int) destinyYChar - 49) + 7;
+
+		int[][] move = { { originX, originY }, { destinyX, destinyY } };
+		input.close();
+		return move;
 	}
 
 	private static void Help() {
 		// TODO: Make some instructions
 	}
 
-	public static char[][] make(int[][] move) {
+	public static char[][] makeMove(int[] origin, int[] destiny) {
 		char[][] newBoard = board.clone();
-		int[] origin = move[0];
-		int[] destiny = move[1];
-		if (legal(origin, destiny)) {
-			newBoard[destiny[0]][destiny[1]] = newBoard[origin[0]][origin[1]];
-			newBoard[origin[0]][origin[1]] = ' ';
-			return newBoard;
-		} else {
-			return null;
-		}
+		newBoard[destiny[0]][destiny[1]] = newBoard[origin[0]][origin[1]];
+		newBoard[origin[0]][origin[1]] = ' ';
+		return newBoard;
 	}
 
 	enum Directions {
 		UP, DOWN, LEFT, RIGHT
 	}
 
-	private static boolean legal(int[] origin, int[] destiny) {
+	private static boolean legal(int[] origin, int[] destiny, char[][] board) {
 		// Bounds
 		if (!bound(origin) || !bound(destiny)) {
+			return false;
+		} else if (origin.equals(destiny)) {
 			return false;
 		}
 		char originChar = board[origin[0]][origin[1]];
@@ -65,15 +93,16 @@ public class ConChess {
 		int differenceX = originX - destinyX;
 		int differenceY = originY - destinyY;
 
+		// Piece validation
 		if (board[originX][originY] == ' ') {
 			return false;
 		}
-		// Checking turn is right
+		// Validating turn is right
 		if (turn != originSide) {
 			return false;
 		}
-		// Checking its attacking the opponent
-		else if (originSide == destinySide) {
+		// Validating move is attacking the opponent, not itself
+		else if (originSide == destinySide && destinyChar != ' ') {
 			return false;
 		}
 
@@ -104,17 +133,59 @@ public class ConChess {
 
 			// Queen
 			case 'q':
-				if (!bishopCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY) && !rookCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)) {
+				if (!bishopCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)
+						&& !rookCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)) {
+					return false;
+				}
+				break;
+
+			case 'p':
+				if (!pawnCheck(destiny, originSide, differenceY, absDiffX, absDiffY)) {
+					return false;
+				}
+				break;
+
+			case 'k':
+				if (absDiffX > 1 || absDiffY > 1) {
 					return false;
 				}
 				break;
 			default:
 				break;
 		}
+		//Self Check prevention
+		char[][] potentialBoard = makeMove(origin, destiny);
+		if (turn == kingCheck(potentialBoard, turn)) {
+			return false;
+		}
+		if (kingCheck(potentialBoard, !turn)) {
+			Check = true;
+		}
+
 		return true;
 	}
 
-	private static boolean bishopCheck(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX, int absDiffY) {
+	private static boolean pawnCheck(int[] destiny, boolean originSide, int differenceY, int absDiffX, int absDiffY) {
+		int destinyX = destiny[0];
+		int destinyY = destiny[1];
+		// Moving more than you should
+		if (absDiffX > 1 || absDiffY > 1) {
+			return false;
+		}
+		// Going backwards
+		else if ((originSide && differenceY != -1) || (!originSide && differenceY != 1)) {
+			return false;
+		}
+		// Diagonal and straight validation
+		else if ((board[destinyX][destinyY] == ' ' && absDiffX != 0)
+				|| (board[destinyX][destinyY] != ' ' && absDiffX != 1)) {
+			return false;
+		}
+		return true;
+	}
+
+	private static boolean bishopCheck(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX,
+			int absDiffY) {
 		Directions vDirection;
 		Directions hDirection;
 		if (absDiffX != absDiffY) {
@@ -144,7 +215,8 @@ public class ConChess {
 		return true;
 	}
 
-	private static boolean rookCheck(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX, int absDiffY) {
+	private static boolean rookCheck(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX,
+			int absDiffY) {
 		if (absDiffX > 0 && absDiffY > 0) {
 			return false;
 		}
@@ -208,18 +280,91 @@ public class ConChess {
 		}
 	}
 
+	// KingCheck validates for checks on said king
+	// Returns true if the king IS checked
+	private static boolean kingCheck(char[][] board, boolean wKing) {
+		// wKing = Which king, and also White King (true=white, false=black)
+		for (int i = 0; i < board.length; i++) {
+			for (int j = 0; j < board[i].length; j++) {
+				int whichKing = wKing ? 0 : 1;
+				int[] destiny = kLocation[whichKing];
+
+				char piece = board[i][j];
+				if (wKing != Character.isUpperCase(piece) && piece != ' ') {
+					int[] origin = { i, j };
+					int originX = origin[0];
+					int originY = origin[1];
+					int destinyX = destiny[0];
+					int destinyY = destiny[1];
+					int differenceX = originX - destinyX;
+					int differenceY = originY - destinyY;
+					int absDiffX = Math.abs(differenceX);
+					int absDiffY = Math.abs(differenceY);
+					switch (Character.toLowerCase(piece)) {
+						case 'n':
+							if (knightCheck(absDiffX, absDiffY)) {
+								return true;
+							}
+							break;
+						case 'b':
+							if (bishopCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)) {
+								return true;
+							}
+							break;
+
+						case 'r':
+							if (rookCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)) {
+								return true;
+							}
+							break;
+						case 'q':
+							if (bishopCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)
+									|| rookCheck(origin, destiny, differenceX, differenceY, absDiffX, absDiffY)) {
+								return true;
+							}
+							break;
+
+						case 'p':
+							if (pawnCheck(destiny, wKing, differenceY, absDiffX, absDiffY)) {
+								return true;
+							}
+							break;
+						case 'k':
+							if (absDiffX == 1 || absDiffY == 1) {
+								return true;
+							}
+							break;
+						default:
+							break;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
 	private static boolean bound(int[] coordinates) {
-		return (coordinates[0] >= 0 && coordinates[0] <= 9) && (coordinates[1] >= 0 && coordinates[1] <= 9);
+		return (coordinates[0] >= 0 && coordinates[0] < 8) && (coordinates[1] >= 0 && coordinates[1] < 8);
 	}
 
 	private static void Draw() {
 		for (int i = 0; i < board.length; i++) {
+			int row = (-1 * i) + 8;
+			System.out.print(row + "\t|");
 			for (int j = 0; j < board[i].length; j++) {
-				Character piece = board[i][j];
-				System.out.print(piece);
+				char piece = board[j][i];
+				System.out.print(" " + piece + " |");
 			}
-			System.out.println();
+			System.out.println("\n\t---------------------------------");
 		}
+		/*
+		String columns = "ABCDEFGH";
+		for (int i = 0; i < columns.length(); i++) {
+			
+		}
+		*/
+		System.out.println("\t  A   B   C   D   E   F   G   H");
+
 	}
 
 	/*
@@ -228,14 +373,31 @@ public class ConChess {
 	public static void Fen2Arr(String position) {
 
 		// TODO: Actual translation
-		char[][] nBoard = { { 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P' }, { 'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R' },
-				new char[8], new char[8], new char[8], new char[8], { 'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r' },
-				{ 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p' } };
+		// TODO: Set King's Positions
+		char[][] nBoard = initPositionArr();
 		turn = true;
 		for (int i = 0; i < castling.length; i++) {
 			castling[i] = true;
 		}
 		board = nBoard.clone();
+	}
+
+	private static char[][] initPositionArr() {
+		char[][] nArray = new char[8][8];
+		String pieces = "rnbqkbnr";
+		// Piece laying
+		for (int i = 0; i < nArray.length; i++) {
+			char xDependantPiece = pieces.charAt(i);
+			nArray[i][1] = 'p';
+			nArray[i][6] = 'P';
+			nArray[i][0] = xDependantPiece;
+			nArray[i][7] = Character.toUpperCase(xDependantPiece);
+			for (int j = 2; j < 6; j++) {
+				nArray[i][j] = ' ';
+			}
+			
+		}
+		return nArray;
 	}
 
 }
