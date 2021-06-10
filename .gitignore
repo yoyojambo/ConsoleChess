@@ -1,4 +1,8 @@
 
 ConChess/.vscode/
 
-ConChess/test/ConChessTests.java
+ConChess/test/
+
+*.jar
+
+*.class

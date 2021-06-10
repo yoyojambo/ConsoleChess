@@ -12,11 +12,13 @@ public class ConChess {
 	private boolean Check = false;
 	// Kings Location: [0] white, [1] black; x,y
 	private int[][] kLocation = { { 4, 7 }, { 4, 0 } };
-	// Castling: [0] = White King Side, [1] White Queen Side,
-	// [2] Black King Side, [3] Black Queen Side
-	private boolean[] castling = { true, true, true, true };
+	// Castling:[0] [0] = White Short, [1] White Long,
+	// [1] [0] Black Short, [1] Black Long
+	private boolean[][] castling = { { true, true }, { true, true } };
+	// CastleArray is just to specify it is the castling action
+	private static int[] castleArray = { 213453, 592837 };
 	final private static String logo = " ____ ____ ____ ____ ____ ____ ____\n||C |||O |||N |||S |||O |||L |||E ||\n||__|||__|||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|\n ____ ____ ____ ____ ____\n||C |||H |||E |||S |||S ||\n||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|";
-	
+
 	public ConChess() {
 		board = cloneArr(initPositionArr());
 		turn = true;
@@ -47,7 +49,49 @@ public class ConChess {
 			int[] origin = move[0];
 			int[] destiny = move[1];
 			if (legal(origin, destiny, game)) {
-				game.board = makeMove(origin, destiny, game.board);
+
+				// The Castling "Exception" needs to be implemented for here too
+				// The castling has been validated at this point supposedly
+				int castleSideIndex = game.turn ? 0 : 1;
+				if (origin == castleArray) {
+					boolean longCastle = destiny[0] == 1 ? true : false;
+
+					// The y ordinate of the movement
+					int y = game.turn ? 7 : 0;
+
+					// Rook's movement
+					origin[0] = longCastle ? 0 : 7;
+					origin[1] = y;
+					destiny[0] = longCastle ? 3 : 5;
+					destiny[1] = y;
+					game.board = makeMove(origin, destiny, game.board);
+
+					// King's movement
+					origin[0] = 4;
+					origin[1] = y;
+					destiny[0] = longCastle ? 2 : 6;
+					destiny[1] = y;
+					game.board = makeMove(origin, destiny, game.board);
+					
+					// Cant castle anymore
+					game.castling[castleSideIndex][0] = false;
+					game.castling[castleSideIndex][1] = false;
+				} else {
+					game.board = makeMove(origin, destiny, game.board);
+					char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
+
+					// Makes the appropiate changes to the castling array so that it remembers that it has been moved
+					if (originChar == 'k') {
+						game.castling[castleSideIndex][0] = false;
+						game.castling[castleSideIndex][1] = false;
+					}
+					else if (originChar == 'r') {
+						if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7) ) {
+							// if x is 7 the castle is short ;), which is the first index of the castling[] array
+							game.castling[castleSideIndex][origin[0] == 7 ? 0 : 1] = false;
+						}
+					}
+				}
 				game.turn = !game.turn;
 				game.Draw();
 				if (game.Check) {
@@ -63,7 +107,7 @@ public class ConChess {
 
 	private int[][] nextMove(Scanner input) throws Exception {
 		System.out.print("\n \t" + ((turn) ? "White" : "Black") + " Move: ");
-		String unParsed = input.nextLine().toLowerCase();
+		String unParsed = input.nextLine().toLowerCase().trim();
 		if (unParsed.equals("exit")) {
 			return null;
 		} else if (unParsed.equals("resign")) {
@@ -85,6 +129,16 @@ public class ConChess {
 				System.out.println("Not an answer, draw aborted.");
 				nextMove(input);
 			}
+			// Castling requires coordination with a specific coordinate hardcoded to the
+			// legal function too
+			// castleArray is the number array for the first coordinates x value, which will
+			// indicate it is a castle move
+			// After castleArray, the side is given by the first number of the first array,
+			// 0 = short castle and 1 = long castle
+		} else if (unParsed.equals("ooo")) {
+			return new int[][] { castleArray, { 1, 0 } };
+		} else if (unParsed.equals("oo")) {
+			return new int[][] { castleArray, { 0, 0 } };
 		}
 		String[] parsed = unParsed.split(" ");
 
@@ -105,6 +159,8 @@ public class ConChess {
 
 	private static void Help() {
 		// TODO: Make some instructions
+		String instructions = "\tTo move a piece, enter the coordinates of the piece,\n\tand where you would want to move it, in the following\n\tformat:\"xy xy\", for example \"d2 d4\"";
+		System.out.println(instructions);
 	}
 
 	public static char[][] makeMove(int[] origin, int[] destiny, char[][] board) {
@@ -126,6 +182,33 @@ public class ConChess {
 	public static boolean legal(int[] origin, int[] destiny, ConChess instance) {
 		char[][] board = instance.board;
 		boolean turn = instance.turn;
+
+		// Castling needs to be checked before anything else, it is an exception that
+		// will trigger the other fail conditions
+		if (origin == castleArray) {
+			// In makeMove the castle instruction leaves a 1 if the castle is long (OOO) and
+			// 0 if it is short (OO)
+			boolean longCastle = destiny[0] == 1 ? true : false;
+			if (instance.castling[turn ? 0 : 1][destiny[0]]) {
+				origin[0] = longCastle ? 0 : 7;
+				origin[1] = turn ? 7 : 0;
+				destiny[1] = turn ? 7 : 0;
+				destiny[0] = 4;
+
+				// I'm dumb and made everything a goddamn parameter so here they are
+				int originX = origin[0];
+				int originY = origin[1];
+				int destinyX = destiny[0];
+				int destinyY = destiny[1];
+				int differenceX = destinyX - originX;
+				int differenceY = destinyY - originY;
+				int absDiffX = Math.abs(differenceX);
+				int absDiffY = Math.abs(differenceY);
+
+				// RookValidation so that there is no pieces in between
+				return rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board);
+			}
+		}
 		// Bounds
 		if (!bound(origin) || !bound(destiny)) {
 			return false;
@@ -180,7 +263,7 @@ public class ConChess {
 				}
 				break;
 
-			// Queen
+			// Queen uses both the bishop and the rook va
 			case 'q':
 				if (!bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)
 						&& !rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
@@ -188,12 +271,14 @@ public class ConChess {
 				}
 				break;
 
+			// Pawn
 			case 'p':
 				if (!pawnValidation(destiny, originSide, differenceY, absDiffX, absDiffY, board)) {
 					return false;
 				}
 				break;
 
+			// king
 			case 'k':
 				if (absDiffX > 1 || absDiffY > 1) {
 					return false;
@@ -210,14 +295,12 @@ public class ConChess {
 			int[][] potentialKingPos = cloneArr(instance.kLocation);
 			if (turn) {
 				potentialKingPos[0] = cloneArr(destiny);
-			}
-			else {
+			} else {
 				potentialKingPos[1] = cloneArr(destiny);
 			}
 			if (kingCheck(potentialBoard, turn, potentialKingPos)) {
 				return false;
-			}
-			else {
+			} else {
 				instance.kLocation[turn ? 0 : 1] = cloneArr(destiny);
 			}
 		} else {
@@ -232,8 +315,8 @@ public class ConChess {
 		return true;
 	}
 
-	private static boolean pawnValidation(int[] destiny, boolean originSide, int differenceY, int absDiffX, int absDiffY,
-			char[][] board) {
+	private static boolean pawnValidation(int[] destiny, boolean originSide, int differenceY, int absDiffX,
+			int absDiffY, char[][] board) {
 		int destinyX = destiny[0];
 		int destinyY = destiny[1];
 		// Exception for the first move
@@ -307,6 +390,8 @@ public class ConChess {
 		int originY = origin[1];
 		int destinyX = destiny[0];
 		int destinyY = destiny[1];
+
+		// Possibly, this can be implemented in a more elegant way, like the bishop validation
 		switch (direction) {
 			case RIGHT:
 				for (int i = originX + 1; i < destinyX; i++) {
@@ -317,7 +402,7 @@ public class ConChess {
 				break;
 
 			case LEFT:
-				for (int i = originX - 1; i < destinyX; i--) {
+				for (int i = originX - 1; i > destinyX; i--) {
 					if (board[i][originY] != ' ') {
 						return false;
 					}
@@ -333,7 +418,7 @@ public class ConChess {
 				break;
 
 			case DOWN:
-				for (int i = originY - 1; i < destinyY; i--) {
+				for (int i = originY - 1; i > destinyY; i--) {
 					if (board[originX][i] != ' ') {
 						return false;
 					}
@@ -385,7 +470,8 @@ public class ConChess {
 							break;
 
 						case 'b':
-							if (bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
+							if (bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
+									board)) {
 								return true;
 							}
 							break;
@@ -446,19 +532,12 @@ public class ConChess {
 
 	/*
 	 * https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
+	 * 
+	 * public void Fen2Arr(String position) { // TODO: Actual translation char[][]
+	 * nBoard = initPositionArr(); this.turn = true; for (int i = 0; i <
+	 * this.castling.length; i++) { this.castling[i] = true; } this.board =
+	 * cloneArr(nBoard); }
 	 */
-	public void Fen2Arr(String position) {
-
-		// TODO: Actual translation
-		// TODO: Set King's Positions
-		char[][] nBoard = initPositionArr();
-		this.turn = true;
-		for (int i = 0; i < this.castling.length; i++) {
-			this.castling[i] = true;
-		}
-		this.board = cloneArr(nBoard);
-	}
-
 	private static char[][] cloneArr(char[][] oldArray) {
 		int width = oldArray.length;
 		int height = oldArray[0].length;
@@ -483,7 +562,7 @@ public class ConChess {
 		return newArray;
 	}
 
-	private static int[] cloneArr (int[] oldArray) {
+	private static int[] cloneArr(int[] oldArray) {
 		int length = oldArray.length;
 		int[] newArray = new int[length];
 		for (int i = 0; i < newArray.length; i++) {
@@ -491,7 +570,7 @@ public class ConChess {
 		}
 		return newArray;
 	}
- 
+
 	private static char[][] initPositionArr() {
 		char[][] nArray = new char[8][8];
 		String pieces = "rnbqkbnr";
@@ -505,8 +584,8 @@ public class ConChess {
 			for (int j = 2; j < 6; j++) {
 				nArray[i][j] = ' ';
 			}
-
 		}
+
 		return nArray;
 	}
 
