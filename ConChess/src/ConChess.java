@@ -73,7 +73,7 @@ public class ConChess {
 					destiny[0] = (longCastle ? 2 : 6);
 					destiny[1] = y;
 					game.board = makeMove(origin, destiny, game.board);
-					
+
 					// Cant castle anymore
 					game.castling[castleSideIndex][0] = false;
 					game.castling[castleSideIndex][1] = false;
@@ -81,14 +81,15 @@ public class ConChess {
 					game.board = makeMove(origin, destiny, game.board);
 					char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
 
-					// Makes the appropiate changes to the castling array so that it remembers that it has been moved
+					// Makes the appropiate changes to the castling array so that it remembers that
+					// it has been moved
 					if (originChar == 'k') {
 						game.castling[castleSideIndex][0] = false;
 						game.castling[castleSideIndex][1] = false;
-					}
-					else if (originChar == 'r') {
-						if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7) ) {
-							// if x is 7 the castle is short ;), which is the first index of the castling[] array
+					} else if (originChar == 'r') {
+						if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7)) {
+							// if x is 7 the castle is short ;), which is the first index of the castling[]
+							// array
 							game.castling[castleSideIndex][origin[0] == 7 ? 0 : 1] = false;
 						}
 					}
@@ -159,7 +160,6 @@ public class ConChess {
 	}
 
 	private static void Help() {
-		// TODO: Make some instructions
 		String instructions = "\tTo move a piece, enter the coordinates of the piece,\n\tand where you would want to move it, in the following\n\tformat:\"xy xy\", for example \"d2 d4\".";
 		System.out.println(instructions);
 	}
@@ -395,7 +395,8 @@ public class ConChess {
 		int destinyX = destiny[0];
 		int destinyY = destiny[1];
 
-		// Possibly, this can be implemented in a more elegant way, like the bishop validation
+		// Possibly, this can be implemented in a more elegant way, like the bishop
+		// validation
 		switch (direction) {
 			case RIGHT:
 				for (int i = originX + 1; i < destinyX; i++) {
@@ -519,29 +520,43 @@ public class ConChess {
 	}
 
 	private void Draw() {
-		System.out.println(" \t_________________________________");
+		linePrinter("\u250c", "\u2510", 33, 4, "\u252c", "\u2500", true, " \t");
 		for (int i = 0; i < this.board.length; i++) {
 			int row = (-1 * i) + 8;
-			System.out.print("      " + row + " |");
+			System.out.print("      " + row + " \u2502");
 			for (int j = 0; j < this.board[i].length; j++) {
 				char piece = this.board[j][i];
-				System.out.print(" " + piece + " |");
+				System.out.print(" " + piece + " \u2502");
 			}
-			System.out.println("\n\t---------------------------------");
+			if (i != this.board.length - 1) {
+				linePrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", true, "\n\t");
+			}
 		}
-
+		linePrinter("\u2514", "\u2518", 33, 4, "\u2534", "\u2500", true, "\n\t");
 		System.out.println("\t  A   B   C   D   E   F   G   H");
 
 	}
 
-	/*
-	 * https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
-	 * 
-	 * public void Fen2Arr(String position) { // TODO: Actual translation char[][]
-	 * nBoard = initPositionArr(); this.turn = true; for (int i = 0; i <
-	 * this.castling.length; i++) { this.castling[i] = true; } this.board =
-	 * cloneArr(nBoard); }
-	 */
+	// Makes printing the lines between the pieces easier, making boxes less painful
+	private void linePrinter(String firstString, String lastString, int length, int cycle, String cycleString,
+			String commonString, boolean endl, String indentString) {
+		System.out.print(indentString);
+		for (int i = 0; i < length; i++) {
+			if (i == 0) {
+				System.out.print(firstString);
+			} else if (i == length - 1) {
+				System.out.print(lastString);
+			} else if (cycle != 0 && i % cycle == 0) {
+				System.out.print(cycleString);
+			} else {
+				System.out.print(commonString);
+			}
+		}
+		if (endl) {
+			System.out.println();
+		}
+	}
+
 	private static char[][] cloneArr(char[][] oldArray) {
 		int width = oldArray.length;
 		int height = oldArray[0].length;
