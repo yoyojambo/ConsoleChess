@@ -31,6 +31,7 @@ public class ConChess {
 		for (String string : formattedLogo) {
 			System.out.println('\t' + string);
 		}
+		System.out.println();
 		Help();
 		ConChess game = new ConChess();
 		game.board = cloneArr(initPositionArr());
@@ -60,16 +61,16 @@ public class ConChess {
 					int y = game.turn ? 7 : 0;
 
 					// Rook's movement
-					origin[0] = longCastle ? 0 : 7;
+					origin[0] = (longCastle ? 0 : 7);
 					origin[1] = y;
-					destiny[0] = longCastle ? 3 : 5;
+					destiny[0] = (longCastle ? 3 : 5);
 					destiny[1] = y;
 					game.board = makeMove(origin, destiny, game.board);
 
 					// King's movement
 					origin[0] = 4;
 					origin[1] = y;
-					destiny[0] = longCastle ? 2 : 6;
+					destiny[0] = (longCastle ? 2 : 6);
 					destiny[1] = y;
 					game.board = makeMove(origin, destiny, game.board);
 					
@@ -159,7 +160,7 @@ public class ConChess {
 
 	private static void Help() {
 		// TODO: Make some instructions
-		String instructions = "\tTo move a piece, enter the coordinates of the piece,\n\tand where you would want to move it, in the following\n\tformat:\"xy xy\", for example \"d2 d4\"";
+		String instructions = "\tTo move a piece, enter the coordinates of the piece,\n\tand where you would want to move it, in the following\n\tformat:\"xy xy\", for example \"d2 d4\".";
 		System.out.println(instructions);
 	}
 
@@ -190,23 +191,26 @@ public class ConChess {
 			// 0 if it is short (OO)
 			boolean longCastle = destiny[0] == 1 ? true : false;
 			if (instance.castling[turn ? 0 : 1][destiny[0]]) {
-				origin[0] = longCastle ? 0 : 7;
-				origin[1] = turn ? 7 : 0;
-				destiny[1] = turn ? 7 : 0;
-				destiny[0] = 4;
+				int[] castleOrigin = new int[2];
+				int[] castleDestiny = new int[2];
+
+				castleOrigin[0] = longCastle ? 0 : 7;
+				castleOrigin[1] = turn ? 7 : 0;
+				castleDestiny[1] = turn ? 7 : 0;
+				castleDestiny[0] = 4;
 
 				// I'm dumb and made everything a goddamn parameter so here they are
-				int originX = origin[0];
-				int originY = origin[1];
-				int destinyX = destiny[0];
-				int destinyY = destiny[1];
+				int originX = castleOrigin[0];
+				int originY = castleOrigin[1];
+				int destinyX = castleDestiny[0];
+				int destinyY = castleDestiny[1];
 				int differenceX = destinyX - originX;
 				int differenceY = destinyY - originY;
 				int absDiffX = Math.abs(differenceX);
 				int absDiffY = Math.abs(differenceY);
 
 				// RookValidation so that there is no pieces in between
-				return rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board);
+				return rookValidation(castleOrigin, castleDestiny, differenceX, differenceY, absDiffX, absDiffY, board);
 			}
 		}
 		// Bounds
