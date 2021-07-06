@@ -13,19 +13,18 @@ public class ConChess {
 	private boolean Check = false;
 	// Kings Location: [0] white, [1] black; x,y
 	private int[][] kingLocation;
-	// Castling:[0] [0] = White Short, [1] White Long,
-	// [1] [0] Black Short, [1] Black Long
+	// Castling:[0] [0] = White Short, [1] White longCastle,
+	// [1] [0] Black Short, [1] Black longCastle
 	private boolean[][] castling;
 	private int fullMoves;
-	// CastleCode is just to specify it is the castling action
-	private static final int[] castleCode = { 213453, 592837 };
 	private int halfMoves;
 	final private static String logo = " ____ ____ ____ ____ ____ ____ ____\n||C |||O |||N |||S |||O |||L |||E ||\n||__|||__|||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|\n ____ ____ ____ ____ ____\n||C |||H |||E |||S |||S ||\n||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|";
-	private static String[] piecesEaten = {"", ""};
-	private static HashMap <Character, Integer> piecesValue = new HashMap<>();
-	private static char[] piecesValueCharArray = {'p', 'k', 'b', 'r', 'q'};
-	private static int[] piecesValueIntArray = {1, 3, 3, 5, 9};
-	
+	// piecesEaten[0] is for pieces eaten BY white, [1] is for pieces eaten BY black
+	private static String[] piecesEaten = { "", "" };
+	private static HashMap<Character, Integer> piecesValue = new HashMap<>();
+	private static char[] piecesValueCharArray = { 'p', 'n', 'b', 'r', 'q' };
+	private static int[] piecesValueIntArray = { 1, 3, 3, 5, 9 };
+
 	public ConChess() {
 		setBoard(cloneArr(initPositionArr()));
 		setTurn(true);
@@ -36,28 +35,21 @@ public class ConChess {
 		int[][] kingLocation = { { 4, 7 }, { 4, 0 } };
 		setKingLocation(kingLocation);
 
-		setFullMoves(0);
+		setFullMoves(1);
 
-		piecesValueArrayCheck();
+		piecesValueMapInstantiationCheck();
 	}
 
-	private static void piecesValueArrayCheck() {
-		if (piecesValue.isEmpty()) {
-			for (int i = 0; i < 5; i++) {
-				char charEntry = piecesValueCharArray[i];
-				int intEntry = piecesValueIntArray[i]; 
-
-				piecesValue.put(charEntry, intEntry);
-			}
-		}
-	}
-
-	public ConChess(char[][] board, boolean turn, boolean[][] castling, int[][] kingLocation, int fullMoves) {
+	public ConChess(char[][] board, int[][] kingLocation, String[] piecesEaten, boolean turn, boolean[][] castling, int halfMoves,int fullMoves) {
 		setBoard(board);
+		setKingLocation(kingLocation);
+		setPiecesEaten(piecesEaten);
 		setTurn(turn);
 		setCastling(castling);
-		setKingLocation(kingLocation);
+		setHalfMoves(halfMoves);
 		setFullMoves(fullMoves);
+
+		piecesValueMapInstantiationCheck();
 	}
 
 	public static void main(String[] args) {
@@ -74,101 +66,150 @@ public class ConChess {
 		game.Draw();
 		while (true) {
 			int[][] move = new int[2][2];
+			int turnIndex = game.turn ? 0 : 1;
 			try {
 				move = game.nextMove(input);
+			} catch (ExitInputException exception) {
+				break;
+			} catch (ResignInputException exception) {
+				String loser = game.turn ? "White" : "Black";
+				String winner = !game.turn ? "White" : "Black";
+				System.out.println(loser + " resigns\n" + winner + " wins!");
+				break;
+			} catch (DrawInputException exception) {
+				break;
+			} catch (CastleInputException exception) {
+				boolean longCastle = exception.longCastle;
+				if (!legal(longCastle, game)) {
+					System.out.println("Illegal move, input again.\n");
+					continue;
+				}
+				int[] origin = new int[2];
+				int[] destiny = new int[2];
+
+				// The y ordinate of the movement
+				int y = game.turn ? 7 : 0;
+
+				// Rook's movement
+				origin[0] = (longCastle ? 0 : 7);
+				origin[1] = y;
+				destiny[0] = (longCastle ? 3 : 5);
+				destiny[1] = y;
+				game.board = makeMove(origin, destiny, game.board);
+
+				// King's movement
+				origin[0] = 4;
+				origin[1] = y;
+				destiny[0] = (longCastle ? 2 : 6);
+				destiny[1] = y;
+				game.board = makeMove(origin, destiny, game.board);
+
+				// Can't castle anymore
+				game.castling[turnIndex][0] = false;
+				game.castling[turnIndex][1] = false;
+				game.flipAndDraw();
+				continue;
+			} catch(FENInputException exception) {
+				ConChess newState = FEN2Chess(exception.FENString);
+				if (newState != null) {
+					game = newState;
+					game.Draw();
+				} else {
+					System.out.println("The FEN formatted string has an error");
+				}
+				continue;
 			} catch (Exception e) {
 				System.out.println("Input not formated correctly, try again.");
 				continue;
 			}
-			if (move == null) {
-				break;
-			}
+
 			int[] origin = move[0];
 			int[] destiny = move[1];
-			if (legal(origin, destiny, game)) {
-
-				// The Castling "Exception" implemented
-				// The castling has been validated at this point supposedly
-				int turnIndex = game.turn ? 0 : 1;
-				if (origin == castleCode) {
-					boolean longCastle = destiny[0] == 1 ? true : false;
-
-					// The y ordinate of the movement
-					int y = game.turn ? 7 : 0;
-
-					// Rook's movement
-					origin[0] = (longCastle ? 0 : 7);
-					origin[1] = y;
-					destiny[0] = (longCastle ? 3 : 5);
-					destiny[1] = y;
-					game.board = makeMove(origin, destiny, game.board);
-
-					// King's movement
-					origin[0] = 4;
-					origin[1] = y;
-					destiny[0] = (longCastle ? 2 : 6);
-					destiny[1] = y;
-					game.board = makeMove(origin, destiny, game.board);
-
-					// Cant castle anymore
-					game.castling[turnIndex][0] = false;
-					game.castling[turnIndex][1] = false;
-				} else {
-
-					// Pieces eaten update
-					char destinyChar = game.board[destiny[0]][destiny[1]];
-					if (destinyChar != ' ') {
-						piecesEaten[turnIndex] = insertEatenPiece(piecesEaten[turnIndex], destinyChar);
-						game.setHalfMoves(0);
-					}
-					else game.increaseHalfMoves();
-
-					game.board = makeMove(origin, destiny, game.board);
-					char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
-
-					// Makes the appropiate changes to the castling array so that it remembers that
-					// it has been moved
-					if (originChar == 'k') {
-						game.castling[turnIndex][0] = false;
-						game.castling[turnIndex][1] = false;
-					} else if (originChar == 'r') {
-						if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7)) {
-							// if x is 7 the castle is short ;), which is the first index of the castling[]
-							// array
-							game.castling[turnIndex][origin[0] == 7 ? 0 : 1] = false;
-						}
-					}
-				}
-				game.turn = !game.turn;
-				game.Draw();
-				if (game.Check) {
-					System.out.println("Check!");
-				}
-				game.Check = false;
-			} else {
+			if (!legal(origin, destiny, game)) {
 				System.out.println("Illegal move, input again.\n");
+				continue;
 			}
+
+			// Pieces eaten update
+			char destinyChar = game.board[destiny[0]][destiny[1]];
+			if (destinyChar != ' ') {
+				piecesEaten[turnIndex] = insertEatenPiece(piecesEaten[turnIndex], destinyChar);
+				game.setHalfMoves(0);
+			} else {
+				game.increaseHalfMoves();
+			}
+
+			game.board = makeMove(origin, destiny, game.board);
+			char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
+
+			// Makes the appropiate changes to the castling array so that it remembers that
+			// it has been moved
+			if (originChar == 'k') {
+				game.castling[turnIndex][0] = false;
+				game.castling[turnIndex][1] = false;
+			} else if (originChar == 'r') {
+				if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7)) {
+					// if x is 7 the castle is short ;), which is the first index of the castling[]
+					// array
+					game.castling[turnIndex][origin[0] == 7 ? 0 : 1] = false;
+				}
+			}
+
+			game.flipAndDraw();
 		}
 		input.close();
+	}
+
+	private void flipAndDraw() {
+		this.turn = !this.turn;
+		this.Draw();
+		if (this.Check) {
+			System.out.println("Check!");
+		}
+		this.Check = false;
+	}
+
+	private class ExitInputException extends Exception {
+	}
+
+	private class ResignInputException extends Exception {
+	}
+
+	private class DrawInputException extends Exception {
+	}
+
+	private class CastleInputException extends Exception {
+		public final boolean longCastle;
+
+		CastleInputException(boolean longCastle) {
+			super();
+			this.longCastle = longCastle;
+		}
+	}
+
+	private class FENInputException extends Exception {
+		public final String FENString;
+
+		FENInputException(String FENString) {
+			super();
+			this.FENString = FENString;
+		}
 	}
 
 	public int[][] nextMove(Scanner input) throws Exception {
 		System.out.print("\n \t" + ((turn) ? "White" : "Black") + " Move: ");
 		String unParsed = input.nextLine().toLowerCase().trim();
 		if (unParsed.equals("exit")) {
-			return null;
+			throw new ExitInputException();
 		} else if (unParsed.equals("resign")) {
-			String loser = turn ? "White" : "Black";
-			String winner = !turn ? "White" : "Black";
-			System.out.println(loser + " resigns\n" + winner + " wins!");
-			return null;
+			throw new ResignInputException();
 		} else if (unParsed.equals("draw")) {
 			String offer = turn ? "White" : "Black";
 			System.out.println(offer + " offers draw.\nDo you accept? (y/n)");
 			String drawStr = input.nextLine().toLowerCase();
 			if (drawStr.equals("y")) {
 				System.out.println("Draw accepted.");
-				return null;
+				throw new DrawInputException();
 			} else if (drawStr.equals("n")) {
 				System.out.println("Draw denied.");
 				nextMove(input);
@@ -176,39 +217,38 @@ public class ConChess {
 				System.out.println("Not an answer, draw aborted.");
 				nextMove(input);
 			}
-			// Castling requires coordination with a specific coordinate hardcoded to the
-			// legal function too
-			// castleArray is the number array for the first coordinates x value, which will
-			// indicate it is a castle move
-			// After castleArray, the side is given by the first number of the first array,
-			// 0 = short castle and 1 = long castle
+			// false = short castle and true = long castle
 		} else if (unParsed.equals("ooo")) {
-			return new int[][] { castleCode, { 1, 0 } };
+			throw new CastleInputException(true);
 		} else if (unParsed.equals("oo")) {
-			return new int[][] { castleCode, { 0, 0 } };
+			throw new CastleInputException(false);
+		} else if (unParsed.equals("fen")) {
+			System.out.println("Enter the FEN position:");
+			String FENString = input.nextLine();
+			throw new FENInputException(FENString);
 		}
 		String[] parsed = unParsed.split(" ");
-		
+
 		char originXChar = parsed[0].charAt(0);
 		char originYChar = parsed[0].charAt(1);
 		char destinyXChar = parsed[1].charAt(0);
 		char destinyYChar = parsed[1].charAt(1);
-		
+
 		int originX = (int) originXChar - 97;
 		int originY = -1 * ((int) originYChar - 49) + 7;
 		int destinyX = (int) destinyXChar - 97;
 		int destinyY = -1 * ((int) destinyYChar - 49) + 7;
-		
+
 		int[][] move = { { originX, originY }, { destinyX, destinyY } };
-		
+
 		return move;
 	}
-	
+
 	public static void Instructions() {
 		String instructions = "\tTo move a piece, enter the coordinates of the piece,\n\tand where you would want to move it, in the following\n\tformat:\"xy xy\", for example \"d2 d4\".";
 		System.out.println(instructions);
 	}
-	
+
 	public static char[][] makeMove(int[] origin, int[] destiny, char[][] board) {
 		int originX = origin[0];
 		int originY = origin[1];
@@ -220,67 +260,105 @@ public class ConChess {
 		newBoard[destinyX][destinyY] = temp;
 		return newBoard;
 	}
-	
+
 	public static ConChess FEN2Chess(String unparsedFENString) {
-		// TODO: Maybe make errors to be able to display a more specific message if anything fails
-		String[] parsedFEString = unparsedFENString.split(" ");
-		if (parsedFEString.length != 6) {
+		// TODO: Make errors to be able to display a more specific message if
+		// anything fails
+		String[] parsedFENString = unparsedFENString.split(" ");
+		if (parsedFENString.length != 6) {
 			return null;
 		}
 		// First field is piece position
-		char[][] board = FenString2Position(parsedFEString[0]);
+		char[][] board = FenString2Position(parsedFENString[0]);
 		if (board == null)
-		return null;
+			return null;
 		int[][] kingLocation = searchKingLocation(board);
+		String[] piecesEaten = instantiatePiecesEaten(board); 
 		// Second field is Side to move
 		boolean turn;
-		if (parsedFEString[1].equals("w")) {
+		if (parsedFENString[1].equals("w")) {
 			turn = true;
-		} else if (parsedFEString[1].equals("b")) {
+		} else if (parsedFENString[1].equals("b")) {
 			turn = false;
 		} else
-		return null;
+			return null;
 		// Third field is Castling
 		boolean[][] castling = new boolean[2][2];
-		castling[0][0] = (parsedFEString[2].indexOf('K') != -1) ? true : false;
-		castling[0][1] = (parsedFEString[2].indexOf('Q') != -1) ? true : false;
-		castling[1][0] = (parsedFEString[2].indexOf('k') != -1) ? true : false;
-		castling[1][1] = (parsedFEString[2].indexOf('q') != -1) ? true : false;
+		castling[0][0] = (parsedFENString[2].indexOf('K') != -1) ? true : false;
+		castling[0][1] = (parsedFENString[2].indexOf('Q') != -1) ? true : false;
+		castling[1][0] = (parsedFENString[2].indexOf('k') != -1) ? true : false;
+		castling[1][1] = (parsedFENString[2].indexOf('q') != -1) ? true : false;
 		// Fourth fiel is en passant
 		// Fifth field is the Halfmove Clock
-		// Sixt field is Fullmove counter
-		int fullMoves;
+		int halfMoves;
 		try {
-			fullMoves = Integer.parseInt(parsedFEString[5]);
+			halfMoves = Integer.parseInt(parsedFENString[4]);
 		} catch (Exception e) {
 			return null;
 		}
-		return new ConChess(board, turn, castling, kingLocation, fullMoves);
+		// Sixt field is Fullmove counter
+		int fullMoves;
+		try {
+			fullMoves = Integer.parseInt(parsedFENString[5]);
+		} catch (Exception e) {
+			return null;
+		}
+		return new ConChess(board, kingLocation, piecesEaten, turn, castling, halfMoves, fullMoves);
+	}
+
+	private static String[] instantiatePiecesEaten(char[][] board) {
+		String totalPieces = "ppppppppnnbbrrqk";
+		String[] piecesEaten = {totalPieces + "", totalPieces.toUpperCase()};
+		for (int x = 0; x < 8; x++) for (int y = 0; y < 8; y++) {
+
+			char piece = board[x][y];
+			if (piece != ' ') {
+				int peIndex = Character.isUpperCase(piece) ? 1 : 0;
+				int piece2DelIndex = piecesEaten[peIndex].indexOf( "" + piece);
+				if (piece2DelIndex == 0) {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(1);
+				}
+				else if (piece2DelIndex == piecesEaten[peIndex].length() - 1) {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piecesEaten[peIndex].length() - 1);
+				} else if (piece2DelIndex == -1) {
+					continue;
+				}
+				else {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piece2DelIndex) + piecesEaten[peIndex].substring(piece2DelIndex + 1);
+				}
+			}
+		}
+		return piecesEaten;
 	}
 
 	private static char[][] FenString2Position(String string) {
 		String legalPieces = "pnbrqk";
 		char[][] board = new char[8][8];
+		for (int x = 0; x < board.length; x++) {
+			for (int y = 0; y < board.length; y++) {
+				board[x][y] = ' ';
+			}
+		}
 		int strIndex = 0;
 		int file = 0;
 		int rank = 0;
 		while (strIndex < string.length()) {
 			char indexChar = string.charAt(strIndex);
-			int num = Character.getNumericValue(indexChar);
 			if (indexChar == '/') {
 				file = 0;
 				rank++;
 			}
 			// If it is a piece
-			else if (legalPieces.indexOf(indexChar) != -1) {
+			else if (legalPieces.indexOf(Character.toLowerCase(indexChar)) != -1) {
 				try {
 					board[file][rank] = indexChar;
 				} catch (IndexOutOfBoundsException e) {
 					return null;
 				}
 				file++;
-			} else if (num > 0) {
-				file = +num;
+			} else if (Character.isDigit(indexChar)) {
+				int num = Integer.parseInt("" + indexChar);
+				file += num;
 			}
 			// This should occur only if there was a misinput
 			else
@@ -311,42 +389,45 @@ public class ConChess {
 		UP, DOWN, LEFT, RIGHT
 	}
 
+	public static boolean legal(boolean longCastle, ConChess instance) {
+		char[][] board = instance.board;
+		boolean turn = instance.turn;
+		// Cant castle while in check
+		if (instance.Check)
+			return false;
+
+		// In makeMove the castle instruction leaves a 1 if the castle is longCastle
+		// (OOO) and
+		// 0 if it is short (OO)
+		if (instance.castling[turn ? 0 : 1][longCastle ? 1 : 0]) {
+			int[] castleOrigin = new int[2];
+			int[] castleDestiny = new int[2];
+
+			castleOrigin[0] = longCastle ? 0 : 7;
+			castleOrigin[1] = turn ? 7 : 0;
+			castleDestiny[1] = turn ? 7 : 0;
+			castleDestiny[0] = 4;
+
+			// I'm dumb and made everything a goddamn parameter so here they are
+			int originX = castleOrigin[0];
+			int originY = castleOrigin[1];
+			int destinyX = castleDestiny[0];
+			int destinyY = castleDestiny[1];
+			int differenceX = destinyX - originX;
+			int differenceY = destinyY - originY;
+			int absDiffX = Math.abs(differenceX);
+			int absDiffY = Math.abs(differenceY);
+
+			// RookValidation so that there is no pieces in between
+			return rookValidation(castleOrigin, castleDestiny, differenceX, differenceY, absDiffX, absDiffY, board);
+		}
+		return false;
+	}
+
 	public static boolean legal(int[] origin, int[] destiny, ConChess instance) {
 		char[][] board = instance.board;
 		boolean turn = instance.turn;
 
-		// Castling needs to be checked before anything else, it is an exception that
-		// will trigger the other fail conditions
-		if (origin == castleCode) {
-			// Cant castle while in check
-			if (instance.Check)
-				return false;
-			// In makeMove the castle instruction leaves a 1 if the castle is long (OOO) and
-			// 0 if it is short (OO)
-			boolean longCastle = destiny[0] == 1 ? true : false;
-			if (instance.castling[turn ? 0 : 1][destiny[0]]) {
-				int[] castleOrigin = new int[2];
-				int[] castleDestiny = new int[2];
-
-				castleOrigin[0] = longCastle ? 0 : 7;
-				castleOrigin[1] = turn ? 7 : 0;
-				castleDestiny[1] = turn ? 7 : 0;
-				castleDestiny[0] = 4;
-
-				// I'm dumb and made everything a goddamn parameter so here they are
-				int originX = castleOrigin[0];
-				int originY = castleOrigin[1];
-				int destinyX = castleDestiny[0];
-				int destinyY = castleDestiny[1];
-				int differenceX = destinyX - originX;
-				int differenceY = destinyY - originY;
-				int absDiffX = Math.abs(differenceX);
-				int absDiffY = Math.abs(differenceY);
-
-				// RookValidation so that there is no pieces in between
-				return rookValidation(castleOrigin, castleDestiny, differenceX, differenceY, absDiffX, absDiffY, board);
-			}
-		}
 		// Bounds
 		if (!bound(origin) || !bound(destiny))
 			return false;
@@ -659,31 +740,35 @@ public class ConChess {
 				char piece = this.board[j][i];
 				System.out.print(" " + piece + " \u2502");
 			}
-			int boxWidth = 16;
+
+			// The Box requires calling the PatternPrinter Functions in a separate way, that
+			// although convoluted, works
+			int boxWidth = 19;
 			if (row == infoBoxHeight) {
 				System.out.println();
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
 				PatternPrinter("\u250c", "\u2510", boxWidth, 0, "\u252c", "\u2500", true, infoBoxIndent);
-			}
-			else if (row == infoBoxHeight - 1) {
-				String textPiecesEaten = "Pieces eaten:";
-				System.out.println(infoBoxIndent + "\u2502"+ textPiecesEaten + boxFitter(textPiecesEaten.length(), boxWidth) + "\u2502");
+			} else if (row == infoBoxHeight - 1) {
+				String textPiecesEaten = " Pieces eaten:";
+				System.out.println(infoBoxIndent + "\u2502" + textPiecesEaten
+						+ boxFitter(textPiecesEaten.length(), boxWidth) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				System.out.println(infoBoxIndent + "\u2502" + piecesEaten[1] + boxFitter(piecesEaten[1].length(), boxWidth) + "\u2502");
-			}
-			else if (row == infoBoxHeight - 2) {
-				System.out.println(infoBoxIndent + "\u2502" + piecesEaten[0] + boxFitter(piecesEaten[0].length(), boxWidth) + "\u2502");
+				System.out.println(infoBoxIndent + "\u2502 " + piecesEaten[1]
+						+ boxFitter(piecesEaten[1].length(), boxWidth - 1) + "\u2502");
+			} else if (row == infoBoxHeight - 2) {
+				System.out.println(infoBoxIndent + "\u2502 " + piecesEaten[0]
+						+ boxFitter(piecesEaten[0].length(), boxWidth - 1) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				String textMoves = "Half Move: " + halfMoves;
-				System.out.println(infoBoxIndent + "\u2502"+ textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
-			}
-			else if (row == infoBoxHeight - 3) {
-				String textMoves = "Move: " + fullMoves;
-				System.out.println(infoBoxIndent + "\u2502"+ textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
+				String textMoves = " Half Moves: " + halfMoves;
+				System.out.println(
+						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
+			} else if (row == infoBoxHeight - 3) {
+				String textMoves = " Full Moves: " + fullMoves;
+				System.out.println(
+						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
 				PatternPrinter("\u2514", "\u2518", boxWidth, 0, "\u2534", "\u2500", true, infoBoxIndent);
-			}
-			else if (i != this.board.length - 1) {
+			} else if (i != this.board.length - 1) {
 				System.out.println();
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", true, "\t");
 			}
@@ -701,7 +786,7 @@ public class ConChess {
 	}
 
 	private String conditionalENDL(boolean b) {
-		return b ? "\n":"";
+		return b ? "\n" : "";
 	}
 
 	// Makes printing the lines between the pieces easier, making boxes less painful
@@ -784,8 +869,9 @@ public class ConChess {
 	}
 
 	private static String insertEatenPiece(String string, char destinyChar) {
-		if (string.length() == 0) return "" + destinyChar;
-		
+		if (string.length() == 0)
+			return "" + destinyChar;
+
 		char[] oldCharArray = string.toCharArray();
 		int insertIndex = 0;
 		insertIndex = findInsertIndex(destinyChar, oldCharArray);
@@ -793,9 +879,12 @@ public class ConChess {
 		char[] newCharArray = new char[oldCharArray.length + 1];
 		// Inserts the char to the right position
 		for (int i = 0; i < newCharArray.length; i++) {
-			if (i < insertIndex) newCharArray[i] = oldCharArray[i];
-			else if (i == insertIndex) newCharArray[i] = destinyChar;
-			else newCharArray[i] = oldCharArray[i - 1];
+			if (i < insertIndex)
+				newCharArray[i] = oldCharArray[i];
+			else if (i == insertIndex)
+				newCharArray[i] = destinyChar;
+			else
+				newCharArray[i] = oldCharArray[i - 1];
 		}
 		return new String(newCharArray);
 	}
@@ -806,26 +895,44 @@ public class ConChess {
 		while (true) {
 			int subArrLenght = u - f;
 			int m = (f + u) / 2;
-			int fValue = piecesValue.get(oldCharArray[f]);
-			int mValue = piecesValue.get(oldCharArray[m]);
-			int rValue = piecesValue.get(destinyChar);
+			int fValue = piecesValue.get(Character.toLowerCase(oldCharArray[f]));
+			int mValue = piecesValue.get(Character.toLowerCase(oldCharArray[m]));
+			int rValue = piecesValue.get(Character.toLowerCase(destinyChar));
 
-			if ( subArrLenght == 1) return (rValue > fValue) ? u : f;
+			if (subArrLenght == 1)
+				return (rValue > fValue) ? u : f;
 
 			if ((subArrLenght == 2)) {
-				if (rValue < fValue) return f;
-				else if (rValue < mValue) return m;
-				else return u;
+				if (rValue < fValue)
+					return f;
+				else if (rValue < mValue)
+					return m;
+				else
+					return u;
 			}
 
-			if (rValue == mValue) return m;
-			else if (rValue < mValue) u = m + 1;
-			else f = m + 1;
+			if (rValue == mValue)
+				return m;
+			else if (rValue < mValue)
+				u = m + 1;
+			else
+				f = m + 1;
 		}
 	}
-	
-	public static int[] getCastleCode() {
-		return cloneArr(castleCode);
+
+	private static void piecesValueMapInstantiationCheck() {
+		if (piecesValue.isEmpty()) {
+			for (int i = 0; i < 5; i++) {
+				char charEntry = piecesValueCharArray[i];
+				int intEntry = piecesValueIntArray[i];
+
+				piecesValue.put(charEntry, intEntry);
+			}
+		}
+	}
+
+	public static String[] getPiecesEaten() {
+		return piecesEaten;
 	}
 
 	public boolean[][] getCastling() {
@@ -860,6 +967,10 @@ public class ConChess {
 		this.kingLocation = kingLocation;
 	}
 
+	public static void setPiecesEaten(String[] piecesEaten) {
+		ConChess.piecesEaten = piecesEaten;
+	}
+
 	public void setCastling(boolean[][] castling) {
 		this.castling = castling;
 	}
@@ -879,7 +990,7 @@ public class ConChess {
 	public void setHalfMoves(int halfMoves) {
 		this.halfMoves = halfMoves;
 	}
-	
+
 	private void increaseHalfMoves() {
 		halfMoves++;
 	}
