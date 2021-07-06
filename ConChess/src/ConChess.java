@@ -17,13 +17,12 @@ public class ConChess {
 	// [1] [0] Black Short, [1] Black longCastle
 	private boolean[][] castling;
 	private int fullMoves;
-	// CastleCode is just to specify it is the castling action
-	private static final int[] castleCode = { 213453, 592837 };
 	private int halfMoves;
 	final private static String logo = " ____ ____ ____ ____ ____ ____ ____\n||C |||O |||N |||S |||O |||L |||E ||\n||__|||__|||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|/__\\|\n ____ ____ ____ ____ ____\n||C |||H |||E |||S |||S ||\n||__|||__|||__|||__|||__||\n|/__\\|/__\\|/__\\|/__\\|/__\\|";
+	// piecesEaten[0] is for pieces eaten BY white, [1] is for pieces eaten BY black
 	private static String[] piecesEaten = { "", "" };
 	private static HashMap<Character, Integer> piecesValue = new HashMap<>();
-	private static char[] piecesValueCharArray = { 'p', 'k', 'b', 'r', 'q' };
+	private static char[] piecesValueCharArray = { 'p', 'n', 'b', 'r', 'q' };
 	private static int[] piecesValueIntArray = { 1, 3, 3, 5, 9 };
 
 	public ConChess() {
@@ -41,13 +40,16 @@ public class ConChess {
 		piecesValueMapInstantiationCheck();
 	}
 
-	public ConChess(char[][] board, int[][] kingLocation, boolean turn, boolean[][] castling, int halfMoves,int fullMoves) {
+	public ConChess(char[][] board, int[][] kingLocation, String[] piecesEaten, boolean turn, boolean[][] castling, int halfMoves,int fullMoves) {
 		setBoard(board);
 		setKingLocation(kingLocation);
+		setPiecesEaten(piecesEaten);
 		setTurn(turn);
 		setCastling(castling);
 		setHalfMoves(halfMoves);
 		setFullMoves(fullMoves);
+
+		piecesValueMapInstantiationCheck();
 	}
 
 	public static void main(String[] args) {
@@ -262,9 +264,6 @@ public class ConChess {
 	public static ConChess FEN2Chess(String unparsedFENString) {
 		// TODO: Make errors to be able to display a more specific message if
 		// anything fails
-
-		// TODO: Fix bug with eatenPieces, it doesnt update it, messes everything up
-		// After Fen black's move is not possible
 		String[] parsedFENString = unparsedFENString.split(" ");
 		if (parsedFENString.length != 6) {
 			return null;
@@ -274,6 +273,7 @@ public class ConChess {
 		if (board == null)
 			return null;
 		int[][] kingLocation = searchKingLocation(board);
+		String[] piecesEaten = instantiatePiecesEaten(board); 
 		// Second field is Side to move
 		boolean turn;
 		if (parsedFENString[1].equals("w")) {
@@ -303,12 +303,42 @@ public class ConChess {
 		} catch (Exception e) {
 			return null;
 		}
-		return new ConChess(board, kingLocation, turn, castling, halfMoves, fullMoves);
+		return new ConChess(board, kingLocation, piecesEaten, turn, castling, halfMoves, fullMoves);
+	}
+
+	private static String[] instantiatePiecesEaten(char[][] board) {
+		String totalPieces = "ppppppppnnbbrrqk";
+		String[] piecesEaten = {totalPieces + "", totalPieces.toUpperCase()};
+		for (int x = 0; x < 8; x++) for (int y = 0; y < 8; y++) {
+
+			char piece = board[x][y];
+			if (piece != ' ') {
+				int peIndex = Character.isUpperCase(piece) ? 1 : 0;
+				int piece2DelIndex = piecesEaten[peIndex].indexOf( "" + piece);
+				if (piece2DelIndex == 0) {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(1);
+				}
+				else if (piece2DelIndex == piecesEaten[peIndex].length() - 1) {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piecesEaten[peIndex].length() - 1);
+				} else if (piece2DelIndex == -1) {
+					continue;
+				}
+				else {
+					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piece2DelIndex) + piecesEaten[peIndex].substring(piece2DelIndex + 1);
+				}
+			}
+		}
+		return piecesEaten;
 	}
 
 	private static char[][] FenString2Position(String string) {
 		String legalPieces = "pnbrqk";
 		char[][] board = new char[8][8];
+		for (int x = 0; x < board.length; x++) {
+			for (int y = 0; y < board.length; y++) {
+				board[x][y] = ' ';
+			}
+		}
 		int strIndex = 0;
 		int file = 0;
 		int rank = 0;
@@ -328,9 +358,6 @@ public class ConChess {
 				file++;
 			} else if (Character.isDigit(indexChar)) {
 				int num = Integer.parseInt("" + indexChar);
-				for (int i = file; i < file + num; i++) {
-					board[file][rank] = ' ';
-				}
 				file += num;
 			}
 			// This should occur only if there was a misinput
@@ -716,27 +743,27 @@ public class ConChess {
 
 			// The Box requires calling the PatternPrinter Functions in a separate way, that
 			// although convoluted, works
-			int boxWidth = 16;
+			int boxWidth = 19;
 			if (row == infoBoxHeight) {
 				System.out.println();
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
 				PatternPrinter("\u250c", "\u2510", boxWidth, 0, "\u252c", "\u2500", true, infoBoxIndent);
 			} else if (row == infoBoxHeight - 1) {
-				String textPiecesEaten = "Pieces eaten:";
+				String textPiecesEaten = " Pieces eaten:";
 				System.out.println(infoBoxIndent + "\u2502" + textPiecesEaten
 						+ boxFitter(textPiecesEaten.length(), boxWidth) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				System.out.println(infoBoxIndent + "\u2502" + piecesEaten[1]
-						+ boxFitter(piecesEaten[1].length(), boxWidth) + "\u2502");
+				System.out.println(infoBoxIndent + "\u2502 " + piecesEaten[1]
+						+ boxFitter(piecesEaten[1].length(), boxWidth - 1) + "\u2502");
 			} else if (row == infoBoxHeight - 2) {
-				System.out.println(infoBoxIndent + "\u2502" + piecesEaten[0]
-						+ boxFitter(piecesEaten[0].length(), boxWidth) + "\u2502");
+				System.out.println(infoBoxIndent + "\u2502 " + piecesEaten[0]
+						+ boxFitter(piecesEaten[0].length(), boxWidth - 1) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				String textMoves = "Half Move: " + halfMoves;
+				String textMoves = " Half Moves: " + halfMoves;
 				System.out.println(
 						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
 			} else if (row == infoBoxHeight - 3) {
-				String textMoves = "Move: " + fullMoves;
+				String textMoves = " Full Moves: " + fullMoves;
 				System.out.println(
 						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
@@ -868,9 +895,9 @@ public class ConChess {
 		while (true) {
 			int subArrLenght = u - f;
 			int m = (f + u) / 2;
-			int fValue = piecesValue.get(oldCharArray[f]);
-			int mValue = piecesValue.get(oldCharArray[m]);
-			int rValue = piecesValue.get(destinyChar);
+			int fValue = piecesValue.get(Character.toLowerCase(oldCharArray[f]));
+			int mValue = piecesValue.get(Character.toLowerCase(oldCharArray[m]));
+			int rValue = piecesValue.get(Character.toLowerCase(destinyChar));
 
 			if (subArrLenght == 1)
 				return (rValue > fValue) ? u : f;
@@ -904,8 +931,8 @@ public class ConChess {
 		}
 	}
 
-	public static int[] getCastleCode() {
-		return cloneArr(castleCode);
+	public static String[] getPiecesEaten() {
+		return piecesEaten;
 	}
 
 	public boolean[][] getCastling() {
@@ -938,6 +965,10 @@ public class ConChess {
 
 	public void setKingLocation(int[][] kingLocation) {
 		this.kingLocation = kingLocation;
+	}
+
+	public static void setPiecesEaten(String[] piecesEaten) {
+		ConChess.piecesEaten = piecesEaten;
 	}
 
 	public void setCastling(boolean[][] castling) {
