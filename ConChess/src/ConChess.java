@@ -1,3 +1,4 @@
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Scanner;
 
@@ -24,6 +25,8 @@ public class ConChess {
 	private static HashMap<Character, Integer> piecesValue = new HashMap<>();
 	private static char[] piecesValueCharArray = { 'p', 'n', 'b', 'r', 'q' };
 	private static int[] piecesValueIntArray = { 1, 3, 3, 5, 9 };
+	// The Coordinate of the en-passant square
+	private int[] enPassant;
 
 	public ConChess() {
 		setBoard(cloneArr(initPositionArr()));
@@ -35,17 +38,22 @@ public class ConChess {
 		int[][] kingLocation = { { 4, 7 }, { 4, 0 } };
 		setKingLocation(kingLocation);
 
+		setEnPassant(null);
+
+		setHalfMoves(0);
 		setFullMoves(1);
 
 		piecesValueMapInstantiationCheck();
 	}
 
-	public ConChess(char[][] board, int[][] kingLocation, String[] piecesEaten, boolean turn, boolean[][] castling, int halfMoves,int fullMoves) {
+	public ConChess(char[][] board, int[][] kingLocation, String[] piecesEaten, boolean turn, boolean[][] castling,
+			int[] enPassant, int halfMoves, int fullMoves) {
 		setBoard(board);
 		setKingLocation(kingLocation);
 		setPiecesEaten(piecesEaten);
 		setTurn(turn);
 		setCastling(castling);
+		setEnPassant(enPassant);
 		setHalfMoves(halfMoves);
 		setFullMoves(fullMoves);
 
@@ -109,12 +117,12 @@ public class ConChess {
 				game.castling[turnIndex][1] = false;
 				game.flipAndDraw();
 				continue;
-			} catch(FENInputException exception) {
-				ConChess newState = FEN2Chess(exception.FENString);
-				if (newState != null) {
+			} catch (FENInputException exception) {
+				try {
+					ConChess newState = FEN2Chess(exception.FENString);
 					game = newState;
 					game.Draw();
-				} else {
+				} catch (FENFormatErrorException e) {
 					System.out.println("The FEN formatted string has an error");
 				}
 				continue;
@@ -139,9 +147,8 @@ public class ConChess {
 				game.increaseHalfMoves();
 			}
 
-			game.board = makeMove(origin, destiny, game.board);
 			char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
-
+			
 			// Makes the appropiate changes to the castling array so that it remembers that
 			// it has been moved
 			if (originChar == 'k') {
@@ -153,14 +160,30 @@ public class ConChess {
 					// array
 					game.castling[turnIndex][origin[0] == 7 ? 0 : 1] = false;
 				}
+			} else if (originChar == 'p') {
+				if (origin[1] == 6 && destiny[1] == 4) {
+					int[] newEnPassant = {origin[0], 5};
+					game.enPassant = newEnPassant;
+				}
+				else if (origin[1] == 1 && destiny[1] == 3) {
+					int[] newEnPassant = {origin[0], 2};
+					game.enPassant = newEnPassant;
+				}
 			}
-
+			
+			game.board = makeMove(origin, destiny, game.board);
 			game.flipAndDraw();
 		}
 		input.close();
 	}
 
 	private void flipAndDraw() {
+		if (!this.turn) {
+			fullMoves++;
+		}
+		if ( this.enPassant != null && ((this.enPassant[1] == 2 && turn) || (this.enPassant[1] == 5 && !turn))) {
+			this.enPassant = null;
+		}
 		this.turn = !this.turn;
 		this.Draw();
 		if (this.Check) {
@@ -196,6 +219,9 @@ public class ConChess {
 		}
 	}
 
+	private static class FENFormatErrorException extends Exception {
+	}
+
 	public int[][] nextMove(Scanner input) throws Exception {
 		System.out.print("\n \t" + ((turn) ? "White" : "Black") + " Move: ");
 		String unParsed = input.nextLine().toLowerCase().trim();
@@ -229,19 +255,23 @@ public class ConChess {
 		}
 		String[] parsed = unParsed.split(" ");
 
-		char originXChar = parsed[0].charAt(0);
-		char originYChar = parsed[0].charAt(1);
-		char destinyXChar = parsed[1].charAt(0);
-		char destinyYChar = parsed[1].charAt(1);
+		int[] origin = coordinateToIndex(parsed[0]);
+		int[] destiny = coordinateToIndex(parsed[1]);
 
-		int originX = (int) originXChar - 97;
-		int originY = -1 * ((int) originYChar - 49) + 7;
-		int destinyX = (int) destinyXChar - 97;
-		int destinyY = -1 * ((int) destinyYChar - 49) + 7;
-
-		int[][] move = { { originX, originY }, { destinyX, destinyY } };
+		int[][] move = { origin, destiny };
 
 		return move;
+	}
+
+	public static int[] coordinateToIndex(String coordinate) {
+		char xChar = coordinate.charAt(0);
+		char yChar = coordinate.charAt(1);
+
+		int xIndex = (int) xChar - 97;
+		int yIndex = -1 * ((int) yChar - 49) + 7;
+
+		int[] indexArr = { xIndex, yIndex };
+		return indexArr;
 	}
 
 	public static void Instructions() {
@@ -261,19 +291,19 @@ public class ConChess {
 		return newBoard;
 	}
 
-	public static ConChess FEN2Chess(String unparsedFENString) {
+	public static ConChess FEN2Chess(String unparsedFENString) throws FENFormatErrorException {
 		// TODO: Make errors to be able to display a more specific message if
 		// anything fails
 		String[] parsedFENString = unparsedFENString.split(" ");
 		if (parsedFENString.length != 6) {
-			return null;
+			throw new FENFormatErrorException();
 		}
 		// First field is piece position
 		char[][] board = FenString2Position(parsedFENString[0]);
 		if (board == null)
-			return null;
+			throw new FENFormatErrorException();
 		int[][] kingLocation = searchKingLocation(board);
-		String[] piecesEaten = instantiatePiecesEaten(board); 
+		String[] piecesEaten = instantiatePiecesEaten(board);
 		// Second field is Side to move
 		boolean turn;
 		if (parsedFENString[1].equals("w")) {
@@ -281,53 +311,51 @@ public class ConChess {
 		} else if (parsedFENString[1].equals("b")) {
 			turn = false;
 		} else
-			return null;
+			throw new FENFormatErrorException();
 		// Third field is Castling
 		boolean[][] castling = new boolean[2][2];
 		castling[0][0] = (parsedFENString[2].indexOf('K') != -1) ? true : false;
 		castling[0][1] = (parsedFENString[2].indexOf('Q') != -1) ? true : false;
 		castling[1][0] = (parsedFENString[2].indexOf('k') != -1) ? true : false;
 		castling[1][1] = (parsedFENString[2].indexOf('q') != -1) ? true : false;
-		// Fourth fiel is en passant
+		// Fourth field is en passant
+		int[] enPassant = (parsedFENString[3].equals("-")) ? null : coordinateToIndex(parsedFENString[3]);
 		// Fifth field is the Halfmove Clock
 		int halfMoves;
-		try {
-			halfMoves = Integer.parseInt(parsedFENString[4]);
-		} catch (Exception e) {
-			return null;
-		}
 		// Sixt field is Fullmove counter
 		int fullMoves;
 		try {
+			halfMoves = Integer.parseInt(parsedFENString[4]);
 			fullMoves = Integer.parseInt(parsedFENString[5]);
 		} catch (Exception e) {
-			return null;
+			throw new FENFormatErrorException();
 		}
-		return new ConChess(board, kingLocation, piecesEaten, turn, castling, halfMoves, fullMoves);
+
+		return new ConChess(board, kingLocation, piecesEaten, turn, castling, enPassant, halfMoves, fullMoves);
 	}
 
 	private static String[] instantiatePiecesEaten(char[][] board) {
 		String totalPieces = "ppppppppnnbbrrqk";
-		String[] piecesEaten = {totalPieces + "", totalPieces.toUpperCase()};
-		for (int x = 0; x < 8; x++) for (int y = 0; y < 8; y++) {
+		String[] piecesEaten = { totalPieces + "", totalPieces.toUpperCase() };
+		for (int x = 0; x < 8; x++)
+			for (int y = 0; y < 8; y++) {
 
-			char piece = board[x][y];
-			if (piece != ' ') {
-				int peIndex = Character.isUpperCase(piece) ? 1 : 0;
-				int piece2DelIndex = piecesEaten[peIndex].indexOf( "" + piece);
-				if (piece2DelIndex == 0) {
-					piecesEaten[peIndex] = piecesEaten[peIndex].substring(1);
-				}
-				else if (piece2DelIndex == piecesEaten[peIndex].length() - 1) {
-					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piecesEaten[peIndex].length() - 1);
-				} else if (piece2DelIndex == -1) {
-					continue;
-				}
-				else {
-					piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piece2DelIndex) + piecesEaten[peIndex].substring(piece2DelIndex + 1);
+				char piece = board[x][y];
+				if (piece != ' ') {
+					int peIndex = Character.isUpperCase(piece) ? 1 : 0;
+					int piece2DelIndex = piecesEaten[peIndex].indexOf("" + piece);
+					if (piece2DelIndex == 0) {
+						piecesEaten[peIndex] = piecesEaten[peIndex].substring(1);
+					} else if (piece2DelIndex == piecesEaten[peIndex].length() - 1) {
+						piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piecesEaten[peIndex].length() - 1);
+					} else if (piece2DelIndex == -1) {
+						continue;
+					} else {
+						piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piece2DelIndex)
+								+ piecesEaten[peIndex].substring(piece2DelIndex + 1);
+					}
 				}
 			}
-		}
 		return piecesEaten;
 	}
 
@@ -490,7 +518,7 @@ public class ConChess {
 
 			// Pawn
 			case 'p':
-				if (!pawnValidation(destiny, originSide, differenceY, absDiffX, absDiffY, board)) {
+				if (!pawnValidation(destiny, originSide, differenceY, absDiffX, absDiffY, board, instance.enPassant)) {
 					return false;
 				}
 				break;
@@ -529,7 +557,7 @@ public class ConChess {
 	}
 
 	private static boolean pawnValidation(int[] destiny, boolean originSide, int differenceY, int absDiffX,
-			int absDiffY, char[][] board) {
+			int absDiffY, char[][] board, int[] enPassant) {
 		int destinyX = destiny[0];
 		int destinyY = destiny[1];
 		// Exception for the first move
@@ -547,7 +575,7 @@ public class ConChess {
 		}
 		// Diagonal and straight validation
 		else if ((board[destinyX][destinyY] == ' ' && absDiffX != 0)
-				|| (board[destinyX][destinyY] != ' ' && absDiffX != 1)) {
+				|| ((board[destinyX][destinyY] != ' ' || (Arrays.equals(destiny, enPassant))) && absDiffX != 1)) {
 			return false;
 		}
 		return true;
@@ -705,7 +733,7 @@ public class ConChess {
 							break;
 
 						case 'p':
-							if (pawnValidation(destiny, !wKing, differenceY, absDiffX, absDiffY, board)) {
+							if (pawnValidation(destiny, !wKing, differenceY, absDiffX, absDiffY, board, null)) {
 								return true;
 							}
 							break;
@@ -981,6 +1009,10 @@ public class ConChess {
 
 	public void setCheck(boolean check) {
 		this.Check = check;
+	}
+
+	public void setEnPassant(int[] enPassant) {
+		this.enPassant = enPassant;
 	}
 
 	public void setFullMoves(int fullMoves) {
