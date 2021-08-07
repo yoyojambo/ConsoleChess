@@ -27,6 +27,7 @@ public class ConChess {
 	private static int[] piecesValueIntArray = { 1, 3, 3, 5, 9 };
 	// The Coordinate of the en-passant square
 	private int[] enPassant;
+	private boolean gameOver = false;
 
 	public ConChess() {
 		setBoard(cloneArr(initPositionArr()));
@@ -72,19 +73,24 @@ public class ConChess {
 		ConChess game = new ConChess();
 		game.board = cloneArr(initPositionArr());
 		game.Draw();
-		while (true) {
+
+		// Main Game Loop
+		while (game.getGameOver() == false) {
 			int[][] move = new int[2][2];
 			int turnIndex = game.turn ? 0 : 1;
 			try {
 				move = game.nextMove(input);
 			} catch (ExitInputException exception) {
+				game.gameOver = true;
 				break;
 			} catch (ResignInputException exception) {
 				String loser = game.turn ? "White" : "Black";
 				String winner = !game.turn ? "White" : "Black";
 				System.out.println(loser + " resigns\n" + winner + " wins!");
+				game.gameOver = true;
 				break;
 			} catch (DrawInputException exception) {
+				game.gameOver = true;
 				break;
 			} catch (CastleInputException exception) {
 				boolean longCastle = exception.longCastle;
@@ -130,58 +136,62 @@ public class ConChess {
 				System.out.println("Input not formated correctly, try again.");
 				continue;
 			}
-
-			int[] origin = move[0];
-			int[] destiny = move[1];
-			if (!legal(origin, destiny, game)) {
-				System.out.println("Illegal move, input again.\n");
-				continue;
-			}
-
-			// Pieces eaten update
-			char destinyChar = game.board[destiny[0]][destiny[1]];
-			if (destinyChar != ' ') {
-				piecesEaten[turnIndex] = insertEatenPiece(piecesEaten[turnIndex], destinyChar);
-				game.setHalfMoves(0);
-			} else {
-				game.increaseHalfMoves();
-			}
-
-			char originChar = Character.toLowerCase(game.board[origin[0]][origin[1]]);
-			
-			// Makes the appropiate changes to the castling array so that it remembers that
-			// it has been moved
-			if (originChar == 'k') {
-				game.castling[turnIndex][0] = false;
-				game.castling[turnIndex][1] = false;
-			} else if (originChar == 'r') {
-				if (origin[1] == (game.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7)) {
-					// if x is 7 the castle is short ;), which is the first index of the castling[]
-					// array
-					game.castling[turnIndex][origin[0] == 7 ? 0 : 1] = false;
-				}
-			} else if (originChar == 'p') {
-				if (origin[1] == 6 && destiny[1] == 4) {
-					int[] newEnPassant = {origin[0], 5};
-					game.enPassant = newEnPassant;
-				}
-				else if (origin[1] == 1 && destiny[1] == 3) {
-					int[] newEnPassant = {origin[0], 2};
-					game.enPassant = newEnPassant;
-				}
-			}
-			
-			game.board = makeMove(origin, destiny, game.board);
-			game.flipAndDraw();
+			game.mainLoopConsole(move);
 		}
 		input.close();
+	}
+
+	private void mainLoopConsole(int[][] move) {
+
+		int turnIndex = this.turn ? 0 : 1;
+		int[] origin = move[0];
+		int[] destiny = move[1];
+		if (!legal(origin, destiny, this)) {
+			System.out.println("Illegal move, input again.\n");
+			return;
+		}
+
+		// Pieces eaten update
+		char destinyChar = this.board[destiny[0]][destiny[1]];
+		if (destinyChar != ' ') {
+			piecesEaten[turnIndex] = insertEatenPiece(piecesEaten[turnIndex], destinyChar);
+			this.setHalfMoves(0);
+		} else {
+			this.increaseHalfMoves();
+		}
+
+		char originChar = Character.toLowerCase(this.board[origin[0]][origin[1]]);
+
+		// Makes the appropiate changes to the castling array so that it remembers that
+		// it has been moved
+		if (originChar == 'k') {
+			this.castling[turnIndex][0] = false;
+			this.castling[turnIndex][1] = false;
+		} else if (originChar == 'r') {
+			if (origin[1] == (this.turn ? 7 : 0) && (origin[0] == 0 || origin[0] == 7)) {
+				// if x is 7 the castle is short ;), which is the first index of the castling[]
+				// array
+				this.castling[turnIndex][origin[0] == 7 ? 0 : 1] = false;
+			}
+		} else if (originChar == 'p') {
+			if (origin[1] == 6 && destiny[1] == 4) {
+				int[] newEnPassant = { origin[0], 5 };
+				this.enPassant = newEnPassant;
+			} else if (origin[1] == 1 && destiny[1] == 3) {
+				int[] newEnPassant = { origin[0], 2 };
+				this.enPassant = newEnPassant;
+			}
+		}
+
+		this.board = makeMove(origin, destiny, this.board);
+		this.flipAndDraw();
 	}
 
 	private void flipAndDraw() {
 		if (!this.turn) {
 			fullMoves++;
 		}
-		if ( this.enPassant != null && ((this.enPassant[1] == 2 && turn) || (this.enPassant[1] == 5 && !turn))) {
+		if (this.enPassant != null && ((this.enPassant[1] == 2 && turn) || (this.enPassant[1] == 5 && !turn))) {
 			this.enPassant = null;
 		}
 		this.turn = !this.turn;
@@ -347,7 +357,8 @@ public class ConChess {
 					if (piece2DelIndex == 0) {
 						piecesEaten[peIndex] = piecesEaten[peIndex].substring(1);
 					} else if (piece2DelIndex == piecesEaten[peIndex].length() - 1) {
-						piecesEaten[peIndex] = piecesEaten[peIndex].substring(0, piecesEaten[peIndex].length() - 1);
+						piecesEaten[peIndex] = piecesEaten[peIndex].substring(0,
+								piecesEaten[peIndex].length() - 1);
 					} else if (piece2DelIndex == -1) {
 						continue;
 					} else {
@@ -447,7 +458,8 @@ public class ConChess {
 			int absDiffY = Math.abs(differenceY);
 
 			// RookValidation so that there is no pieces in between
-			return rookValidation(castleOrigin, castleDestiny, differenceX, differenceY, absDiffX, absDiffY, board);
+			return rookValidation(castleOrigin, castleDestiny, differenceX, differenceY, absDiffX, absDiffY,
+					board);
 		}
 		return false;
 	}
@@ -495,7 +507,8 @@ public class ConChess {
 				break;
 			// Rook
 			case 'r':
-				if (!rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
+				if (!rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
+						board)) {
 					return false;
 				}
 
@@ -503,22 +516,26 @@ public class ConChess {
 			// Bishop
 			case 'b':
 
-				if (!bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
+				if (!bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
+						board)) {
 					return false;
 				}
 				break;
 
 			// Queen uses both the bishop and the rook va
 			case 'q':
-				if (!bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)
-						&& !rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
+				if (!bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
+						board)
+						&& !rookValidation(origin, destiny, differenceX, differenceY, absDiffX,
+								absDiffY, board)) {
 					return false;
 				}
 				break;
 
 			// Pawn
 			case 'p':
-				if (!pawnValidation(destiny, originSide, differenceY, absDiffX, absDiffY, board, instance.enPassant)) {
+				if (!pawnValidation(destiny, originSide, differenceY, absDiffX, absDiffY, board,
+						instance.enPassant)) {
 					return false;
 				}
 				break;
@@ -575,14 +592,15 @@ public class ConChess {
 		}
 		// Diagonal and straight validation
 		else if ((board[destinyX][destinyY] == ' ' && absDiffX != 0)
-				|| ((board[destinyX][destinyY] != ' ' || (Arrays.equals(destiny, enPassant))) && absDiffX != 1)) {
+				|| ((board[destinyX][destinyY] != ' ' || (Arrays.equals(destiny, enPassant)))
+						&& absDiffX != 1)) {
 			return false;
 		}
 		return true;
 	}
 
-	private static boolean bishopValidation(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX,
-			int absDiffY, char[][] board) {
+	private static boolean bishopValidation(int[] origin, int[] destiny, int differenceX, int differenceY,
+			int absDiffX, int absDiffY, char[][] board) {
 		Directions vDirection;
 		Directions hDirection;
 		if (absDiffX != absDiffY) {
@@ -612,8 +630,8 @@ public class ConChess {
 		return true;
 	}
 
-	private static boolean rookValidation(int[] origin, int[] destiny, int differenceX, int differenceY, int absDiffX,
-			int absDiffY, char[][] board) {
+	private static boolean rookValidation(int[] origin, int[] destiny, int differenceX, int differenceY,
+			int absDiffX, int absDiffY, char[][] board) {
 		if (absDiffX > 0 && absDiffY > 0) {
 			return false;
 		}
@@ -712,28 +730,32 @@ public class ConChess {
 							break;
 
 						case 'b':
-							if (bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
-									board)) {
+							if (bishopValidation(origin, destiny, differenceX, differenceY,
+									absDiffX, absDiffY, board)) {
 								return true;
 							}
 							break;
 
 						case 'r':
-							if (rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)) {
+							if (rookValidation(origin, destiny, differenceX, differenceY,
+									absDiffX, absDiffY, board)) {
 								return true;
 							}
 							break;
 
 						case 'q':
-							if (bishopValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY, board)
-									|| rookValidation(origin, destiny, differenceX, differenceY, absDiffX, absDiffY,
+							if (bishopValidation(origin, destiny, differenceX, differenceY,
+									absDiffX, absDiffY, board)
+									|| rookValidation(origin, destiny, differenceX,
+											differenceY, absDiffX, absDiffY,
 											board)) {
 								return true;
 							}
 							break;
 
 						case 'p':
-							if (pawnValidation(destiny, !wKing, differenceY, absDiffX, absDiffY, board, null)) {
+							if (pawnValidation(destiny, !wKing, differenceY, absDiffX,
+									absDiffY, board, null)) {
 								return true;
 							}
 							break;
@@ -775,7 +797,8 @@ public class ConChess {
 			if (row == infoBoxHeight) {
 				System.out.println();
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				PatternPrinter("\u250c", "\u2510", boxWidth, 0, "\u252c", "\u2500", true, infoBoxIndent);
+				PatternPrinter("\u250c", "\u2510", boxWidth, 0, "\u252c", "\u2500", true,
+						infoBoxIndent);
 			} else if (row == infoBoxHeight - 1) {
 				String textPiecesEaten = " Pieces eaten:";
 				System.out.println(infoBoxIndent + "\u2502" + textPiecesEaten
@@ -788,14 +811,15 @@ public class ConChess {
 						+ boxFitter(piecesEaten[0].length(), boxWidth - 1) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
 				String textMoves = " Half Moves: " + halfMoves;
-				System.out.println(
-						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
+				System.out.println(infoBoxIndent + "\u2502" + textMoves
+						+ boxFitter(textMoves.length(), boxWidth) + "\u2502");
 			} else if (row == infoBoxHeight - 3) {
 				String textMoves = " Full Moves: " + fullMoves;
-				System.out.println(
-						infoBoxIndent + "\u2502" + textMoves + boxFitter(textMoves.length(), boxWidth) + "\u2502");
+				System.out.println(infoBoxIndent + "\u2502" + textMoves
+						+ boxFitter(textMoves.length(), boxWidth) + "\u2502");
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", false, "\t");
-				PatternPrinter("\u2514", "\u2518", boxWidth, 0, "\u2534", "\u2500", true, infoBoxIndent);
+				PatternPrinter("\u2514", "\u2518", boxWidth, 0, "\u2534", "\u2500", true,
+						infoBoxIndent);
 			} else if (i != this.board.length - 1) {
 				System.out.println();
 				PatternPrinter("\u251c", "\u2524", 33, 4, "\u253c", "\u2500", true, "\t");
@@ -960,7 +984,7 @@ public class ConChess {
 	}
 
 	public static String[] getPiecesEaten() {
-		return piecesEaten;
+		return piecesEaten.clone();
 	}
 
 	public boolean[][] getCastling() {
@@ -985,6 +1009,10 @@ public class ConChess {
 
 	public int getHalfMoves() {
 		return halfMoves;
+	}
+
+	public boolean getGameOver() {
+		return this.gameOver;
 	}
 
 	public void setBoard(char[][] board) {
